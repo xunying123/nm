@@ -1,22 +1,5 @@
-
-
-// `include "/RISCV-CPU/CPU/src/common/block_ram/block_ram.v"
-// `include "/RISCV-CPU/CPU/src/common/fifo/fifo.v"
-// `include "/RISCV-CPU/CPU/src/common/uart/uart.v"
-// `include "/RISCV-CPU/CPU/src/common/uart/uart_tx.v"
-// `include "/RISCV-CPU/CPU/src/common/uart/uart_rx.v"
-// `include "/RISCV-CPU/CPU/src/common/uart/uart_baud_clk.v"
-// `include "/RISCV-CPU/CPU/src/interface/hci.v"
-// `include "/RISCV-CPU/CPU/src/interface/ram.v"
-// `include "/RISCV-CPU/CPU/src/func/Decode.v"
-// `include "/RISCV-CPU/CPU/src/func/EX.v"
-// `include "/RISCV-CPU/CPU/src/func/Extend_LoadData.v"
-// `include "/RISCV-CPU/CPU/src/func/IsBranch.v"
-// `include "/RISCV-CPU/CPU/src/func/IsLoad.v"
-// `include "/RISCV-CPU/CPU/src/func/IsStore.v"
-// `include "/RISCV-CPU/CPU/src/info.v"
-// `include "/RISCV-CPU/CPU/src/cpu.v"
-
+// riscv top module file
+// modification allowed for debugging purposes
 
 module riscv_top
 #(
@@ -81,10 +64,6 @@ ram #(.ADDR_WIDTH(RAM_ADDR_WIDTH))ram0(
 
 assign 		ram_en = (cpumc_a[RAM_ADDR_WIDTH:RAM_ADDR_WIDTH-1] == 2'b11) ? 1'b0 : 1'b1;
 assign 		ram_a = cpumc_a[RAM_ADDR_WIDTH-1:0];
-// always @(*) begin
-// 	$display("cpumc_a",cpumc_a);
-// 	$display("ram_en",ram_en);
-// end
 
 //
 // CPU: CPU that implements RISC-V 32b integer base user-level real-mode ISA
