@@ -1,16 +1,6 @@
 // RISCV32I CPU top module
 // port modification allowed for debugging purposes
 
-`include "/mnt/e/RISCV-CPU/CPU/src/info.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/unit/BHT.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/unit/ICache.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/unit/Ins_Queue.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/unit/MemCtrl.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/unit/Reg.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/unit/ROB.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/unit/RS.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/unit/SLB.v"
-
 // `include "/RISCV-CPU/CPU/src/info.v"
 // `include "/RISCV-CPU/CPU/src/unit/BHT.v"
 // `include "/RISCV-CPU/CPU/src/unit/ICache.v"
