@@ -1,23 +1,20 @@
-
-
+// RISCV32I CPU top module
+// port modification allowed for debugging purposes
 
 module cpu(
-  input  wire                 clk_in,			// system clock signal
-  input  wire                 rst_in,			// reset signal
-  input  wire			      rdy_in,			// ready signal, pause cpu when low
+  input  wire   clk_in,			// system clock signal
+  input  wire   rst_in,			// reset signal
+	input  wire					 rdy_in,			// ready signal, pause cpu when low
 
-  input  wire [ 7:0]          mem_din,	    	// data input bus
-  output wire [ 7:0]          mem_dout,		    // data output bus
-  output wire [31:0]          mem_a,			// address bus (only 17:0 is used)
-  output wire                 mem_wr,			// write/read signal (1 for write)
+  input  wire [ 7:0]   mem_din,		// data input bus
+  output wire [ 7:0]   mem_dout,		// data output bus
+  output wire [31:0]   mem_a,			// address bus (only 17:0 is used)
+  output wire   mem_wr,			// write/read signal (1 for write)
 	
-  input  wire                 io_buffer_full,   // 1 if uart buffer is full
+	input  wire   io_buffer_full, // 1 if uart buffer is full
 	
-  output wire [31:0]	      dbgreg_dout       // cpu register output (debugging demo)
+	output wire [31:0]			dbgreg_dout		// cpu register output (debugging demo)
 );
-// always @(*) begin
-// 	$display("cpu        ","clk=",clk_in,",rst=",rst_in,", time=%t",$realtime);
-// end
 
 // implementation goes here
 
@@ -25,492 +22,495 @@ module cpu(
 // - Pause cpu(freeze pc, registers, etc.) when rdy_in is low
 // - Memory read result will be returned in the next cycle. Write takes 1 cycle(no need to wait)
 // - Memory is of size 128KB, with valid address ranging from 0x0 to 0x20000
-// - I/O port is mapped to address higher than 0x30000 (mem_a[17:16]==2'b11)
+// - I/O port is mapped to address higher than 0x30000 (mem_a[17:16]==2'data11)
 // - 0x30000 read: read a byte from input
 // - 0x30000 write: write a byte to output (write 0x00 is ignored)
 // - 0x30004 read: read clocks passed since cpu starts (in dword, 4 bytes)
 // - 0x30004 write: indicates program stop (will output '\0' through uart tx)
 
-wire Clear_flag;
+wire clear;
 
 /* Get_ins_to_queue() */  //insqueue
 //memctrl
-wire memctrl_ins_ok;
-wire [`DATA_WIDTH] memctrl_ins_ans;
+wire memctrl_ins_ready;
+wire [31:0] memctrl_ins_;
 
-wire insqueue_to_memctrl_needchange;
+wire Insq_Mem;
 
-wire [`DATA_WIDTH] memctrl_ins_addr_;
-wire [3:0] memctrl_ins_remain_cycle_;
+wire [31:0] memctrl_ins_addr;
+wire [3:0] memctrl_remain;
 
 //   Search_In_ICache()
 //icache
-wire [`DATA_WIDTH] addr1;
-wire hit;
-wire [`DATA_WIDTH] returnInst;
+wire [31:0] addr1;
+wire hit_icache;
+wire [31:0] return_inst;
 
 //   Store_In_ICache()
 //icache
-wire insqueue_to_ICache_needchange;
-wire [`DATA_WIDTH] addr2;
-wire [`DATA_WIDTH] storeInst;
+wire Inq_Icache;
+wire [31:0] addr2;
+wire [31:0] store_Inst;
 
 //   BranchJudge()
 //BHT
-wire [`BHT_LR_WIDTH] bht_id1;
-wire bht_get;
+wire [31:0] index_bht;
+wire bht_re;
 
 
 /* do_ins_queue() */  //insqueue
 //ROB
-wire [`ROB_LR_WIDTH] h1;
-wire [`ROB_LR_WIDTH] h2;
+wire [31:0] h1;
+wire [31:0] h2;
 
-wire [`ROB_LR_WIDTH] ROB_size;
-wire [`ROB_LR_WIDTH] ROB_R;
-wire ROB_s_ready_h1;
-wire [`DATA_WIDTH] ROB_s_value_h1;
-wire ROB_s_ready_h2;
-wire [`DATA_WIDTH] ROB_s_value_h2;
+wire [31:0] rob_size;
+wire [31:0] rob_r;
+wire rob_h1_ready;
+wire [31:0] h1_value;
+wire rob_h2_ready;
+wire [31:0] h2_value;
 
-wire insqueue_to_ROB_needchange;
-wire insqueue_to_ROB_size_addflag;
-wire [`ROB_LR_WIDTH] b1;
+wire Insq_ROB;
+wire ROB_add;
+wire [31:0] data1;
 
-wire [`ROB_LR_WIDTH] ROB_R_;
-wire [`DATA_WIDTH] ROB_s_pc_b1_;
-wire [`DATA_WIDTH] ROB_s_inst_b1_;
-wire [`INST_TYPE_WIDTH] ROB_s_ordertype_b1_;
-wire [`DATA_WIDTH] ROB_s_dest_b1_;
-wire [`DATA_WIDTH] ROB_s_jumppc_b1_;
-wire ROB_s_isjump_b1_;
-wire ROB_s_ready_b1_;
+wire [31:0] rob_r_;
+wire [31:0] rob_pc_;
+wire [31:0] rob_inst_;
+wire [5:0] rob_order_;
+wire [31:0] rob_dest_;
+wire [31:0] rob_topc_;
+wire rob_jump_;
+wire rob_ready_;
 
 //RS
-wire [`RS_LR_WIDTH] RS_unbusy_pos;
+wire [31:0] rs_unbusy;
 
-wire insqueue_to_RS_needchange;
-wire [`RS_LR_WIDTH] r2;
+wire Insq_RS;
+wire [31:0] return2;
 
-wire [`DATA_WIDTH] RS_s_vj_r2_;
-wire [`DATA_WIDTH] RS_s_vk_r2_;
-wire [`DATA_WIDTH] RS_s_qj_r2_;
-wire [`DATA_WIDTH] RS_s_qk_r2_;
-wire [`DATA_WIDTH] RS_s_inst_r2_;
-wire [`INST_TYPE_WIDTH] RS_s_ordertype_r2_;
-wire [`DATA_WIDTH] RS_s_pc_r2_;
-wire [`DATA_WIDTH] RS_s_jumppc_r2_;
-wire [`DATA_WIDTH] RS_s_A_r2_;
-wire [`DATA_WIDTH] RS_s_reorder_r2_;
-wire RS_s_busy_r2_;
+wire [31:0] rs_vj;
+wire [31:0] rs_vk;
+wire [31:0] rs_qj;
+wire [31:0] rs_qk;
+wire [31:0] rs_inst;
+wire [5:0] rs_order;
+wire [31:0] rs_pc;
+wire [31:0] rs_topc;
+wire [31:0] rs_A;
+wire [31:0] rs_reorder;
+wire rs_busy;
 
 //SLB
-wire [`SLB_LR_WIDTH] SLB_size;
-wire [`SLB_LR_WIDTH] SLB_R;
+wire [31:0] slb_size;
+wire [31:0] slb_r;
 
-wire insqueue_to_SLB_needchange;
-wire insqueue_to_SLB_size_addflag;
-wire [`SLB_LR_WIDTH] r1;
+wire Insq_SLB;
+wire SLB_add;
+wire [31:0] return1;
 
-wire [`SLB_LR_WIDTH] SLB_R_;
-wire [`DATA_WIDTH] SLB_s_vj_r1_;
-wire [`DATA_WIDTH] SLB_s_vk_r1_;
-wire [`DATA_WIDTH] SLB_s_qj_r1_;
-wire [`DATA_WIDTH] SLB_s_qk_r1_;
-wire [`DATA_WIDTH] SLB_s_inst_r1_;
-wire [`DATA_WIDTH] SLB_s_ordertype_r1_;
-wire [`DATA_WIDTH] SLB_s_pc_r1_;
-wire [`DATA_WIDTH] SLB_s_A_r1_;
-wire [`DATA_WIDTH] SLB_s_reorder_r1_;
-wire SLB_s_ready_r1_;
+wire [31:0] slb_r_;
+wire [31:0] slb_vj;
+wire [31:0] slb_vk;
+wire [31:0] slb_qj;
+wire [31:0] slb_qk;
+wire [31:0] slb_inst;
+wire [31:0] slb_order;
+wire [31:0] slb_pc;
+wire [31:0] slb_A;
+wire [31:0] slb_reorder;
+wire slb_ready;
 
 //Reg
-wire [`DATA_WIDTH] order_rs1;
-wire [`DATA_WIDTH] order_rs2;
+wire [31:0] rs1_0;
+wire [31:0] rs2_0;
 
-wire reg_busy_order_rs1;
-wire reg_busy_order_rs2;
-wire [`DATA_WIDTH] reg_reorder_order_rs1;
-wire [`DATA_WIDTH] reg_reorder_order_rs2;
-wire [`DATA_WIDTH] reg_reg_order_rs1;
-wire [`DATA_WIDTH] reg_reg_order_rs2;
+wire reg_busy_rs1;
+wire reg_busy_rs2;
+wire [31:0] reg_rs1_reorder;
+wire [31:0] reg_rs2_reorder;
+wire [31:0] reg_order_rs1;
+wire [31:0] reg_order_rs2;
 
-wire insqueue_to_Reg_needchange;
-wire [`DATA_WIDTH] order_rd;
+wire Insq_REG;
+wire [31:0] order_rd;
 
-wire reg_busy_order_rd_;
-wire [`DATA_WIDTH] reg_reorder_order_rd_;
+wire rd_busy;
+wire [31:0] rd_reorder;
 
 
 /* do_ROB() */  //ROB
 //RS and SLB
-wire [`ROB_LR_WIDTH] b3;
+wire [31:0] data3;
 
 //BHT
-wire ROB_to_BHT_needchange; // predict wrong
-wire ROB_to_BHT_needchange2; // predict correct
-wire [`BHT_LR_WIDTH] bht_id2;
+wire wrong; // predict wrong
+wire right; // predict correct
+wire [31:0] index_bht2;
 
 //RS
-wire ROB_to_RS_needchange;
-wire [`DATA_WIDTH] ROB_to_RS_value_b3;
+wire ROB_RS;
+wire [31:0] data3_RS;
 
 //SLB
-wire ROB_to_SLB_needchange;
-wire ROB_to_SLB_needchange2;
-wire [`DATA_WIDTH] ROB_to_SLB_value_b3;
+wire ROB_SLB;
+wire ROB_SLB2;
+wire [31:0] data3_SLB;
 
 
 //Reg
-wire [`DATA_WIDTH] commit_rd;
+wire [31:0] rd_commit;
 
-wire reg_busy_commit_rd;
-wire [`ROB_LR_WIDTH] reg_reorder_commit_rd;
+wire rd_busy_commit;
+wire [31:0] rd_reorder_commit;
 
-wire ROB_to_Reg_needchange;
-wire ROB_to_Reg_needchange2;
+wire ROB_Reg;
+wire ROB_Reg2;
 
-wire [`DATA_WIDTH] reg_reg_commit_rd_;
-wire reg_busy_commit_rd_;
+wire [31:0] rd_data_commit;
+wire rd_busy_commit_;
 
 //insqueue
-wire [`DATA_WIDTH] pc_;
+wire [31:0] pc_;
 
 /* do_RS() */  //RS
 //ROB and SLB
-wire [`ROB_LR_WIDTH] b2;
+wire [31:0] data2;
 
 //ROB
-wire RS_to_ROB_needchange;
-wire RS_to_ROB_needchange2;
+wire RS_ROB;
+wire RS_ROB2;
 
-wire [`DATA_WIDTH] ROB_s_value_b2_;
-wire ROB_s_ready_b2_;
-wire [`DATA_WIDTH] ROB_s_jumppc_b2_;
+wire [31:0] data2_value;
+wire data2_ready;
+wire [31:0] data2_topc;
 
 //SLB
-wire RS_to_SLB_needchange;
+wire RS_SLB;
 
-wire [`DATA_WIDTH] RS_to_SLB_value;
+wire [31:0] slb_value;
 
 
 /* do_SLB() */
 //RS and ROB
-wire [`ROB_LR_WIDTH] b4;
+wire [31:0] data4;
 
 //memctrl
-wire memctrl_data_ok;
-wire [`DATA_WIDTH] memctrl_data_ans;
+wire memctrl_data_ready;
+wire [31:0] memctrl_data_ret;
 
-wire SLB_to_memctrl_needchange;//load
-wire SLB_to_memctrl_needchange2;//store
+wire slb_load;//load
+wire slb_store;//store
 
-wire [`INST_TYPE_WIDTH] SLB_to_memctrl_ordertype;
-wire [`DATA_WIDTH] SLB_to_memctrl_vj;
-wire [`DATA_WIDTH] SLB_to_memctrl_vk;
-wire [`DATA_WIDTH] SLB_to_memctrl_A;
+wire [5:0] slb_mem_order;
+wire [31:0] slb_mem_vj;
+wire [31:0] slb_mem_vk;
+wire [31:0] slb_mem_A;
 
 //ROB
-wire SLB_to_ROB_needchange;
-wire [`DATA_WIDTH] ROB_s_value_b4_;
-wire ROB_s_ready_b4_;
+wire SLB_ROB;
+wire [31:0] data4_value;
+wire data4_ready;
 
 //RS
-wire SLB_to_RS_needchange;
-wire [`DATA_WIDTH] SLB_to_RS_loadvalue;
+wire SLB_RS;
+wire [31:0] load_value;
+
+
+I_QUEUE  I_QUEUE_inst (
+    .clk(clk_in),
+    .rst(rst_in),
+    .rdy(rdy_in),
+    .clear(clear),
+    .memctrl_ins_ready(memctrl_ins_ready),
+    .memctrl_ins_(memctrl_ins_),
+    .Insq_Mem(Insq_Mem),
+    .memctrl_ins_addr(memctrl_ins_addr),
+    .memctrl_remain(memctrl_remain),
+    .addr1(addr1),
+    .hit_icache_(hit_icache),
+    .return_inst(return_inst),
+    .Inq_Icache(Inq_Icache),
+    .addr2(addr2),
+    .store_Inst(store_Inst),
+    .index_bht(index_bht),
+    .bht_re(bht_re),
+    .h1(h1),
+    .h2(h2),
+    .rob_size(rob_size),
+    .rob_r(rob_r),
+    .rob_h1_ready(rob_h1_ready),
+    .rob_h2_ready(rob_h2_ready),
+    .h1_value(h1_value),
+    .h2_value(h2_value),
+    .Insq_ROB(Insq_ROB),
+    .ROB_add(ROB_add),
+    .data1(data1),
+    .rob_r_(rob_r_),
+    .rob_pc_(rob_pc_),
+    .rob_inst_(rob_inst_),
+    .rob_order_(rob_order_),
+    .rob_dest_(rob_dest_),
+    .rob_topc_(rob_topc_),
+    .rob_ready_(rob_ready_),
+    .rob_jump_(rob_jump_),
+    .rs_unbusy(rs_unbusy),
+    .Insq_RS(Insq_RS),
+    .return2(return2),
+    .rs_vj(rs_vj),
+    .rs_vk(rs_vk),
+    .rs_qj(rs_qj),
+    .rs_qk(rs_qk),
+    .rs_inst(rs_inst),
+    .rs_pc(rs_pc),
+    .rs_topc(rs_topc),
+    .rs_A(rs_A),
+    .rs_reorder(rs_reorder),
+    .rs_order(rs_order),
+    .rs_busy(rs_busy),
+    .slb_size(slb_size),
+    .slb_r(slb_r),
+    .Insq_SLB(Insq_SLB),
+    .SLB_add(SLB_add),
+    .return1(return1),
+    .slb_r_(slb_r_),
+    .slb_pc(slb_pc),
+    .slb_inst(slb_inst),
+    .slb_order(slb_order),
+    .slb_reorder(slb_reorder),
+    .slb_vj(slb_vj),
+    .slb_vk(slb_vk),
+    .slb_qj(slb_qj),
+    .slb_qk(slb_qk),
+    .slb_A(slb_A),
+    .slb_ready(slb_ready),
+    .rs1_0(rs1_0),
+    .rs2_0(rs2_0),
+    .reg_busy_rs1(reg_busy_rs1),
+    .reg_busy_rs2(reg_busy_rs2),
+    .reg_rs1_reorder(reg_rs1_reorder),
+    .reg_rs2_reorder(reg_rs2_reorder),
+    .reg_order_rs1(reg_order_rs1),
+    .reg_order_rs2(reg_order_rs2),
+    .order_rd(order_rd),
+    .Insq_REG(Insq_REG),
+    .rd_busy(rd_busy),
+    .rd_reorder(rd_reorder),
+    .pc_(pc_)
+  );
+
+  ICache  ICache_inst (
+    .clk(clk_in),
+    .rst(rst_in),
+    .rdy(rdy_in),
+    .addr1(addr1),
+    .hit_icache(hit_icache),
+    .return_inst(return_inst),
+    .Inq_Icache(Inq_Icache),
+    .addr2(addr2),
+    .store_Inst(store_Inst)
+  );
+
+
+  MemCtrl  MemCtrl_inst (
+    .clk(clk_in),
+    .rst(rst_in),
+    .rdy(rdy_in),
+    .w_r(mem_wr),
+    .addr_input(mem_a),
+    .data_output(mem_din),
+    .data_input(mem_dout),
+    .clear(clear),
+    .memctrl_ins_ready(memctrl_ins_ready),
+    .memctrl_ins_(memctrl_ins_),
+    .Insq_Mem(Insq_Mem),
+    .memctrl_ins_addr(memctrl_ins_addr),
+    .memctrl_remain(memctrl_remain),
+    .memctrl_data_ready(memctrl_data_ready),
+    .memctrl_data_ret(memctrl_data_ret),
+    .slb_load(slb_load),
+    .slb_store(slb_store),
+    .slb_mem_order(slb_mem_order),
+    .slb_mem_vj(slb_mem_vj),
+    .slb_mem_vk(slb_mem_vk),
+    .slb_mem_A(slb_mem_A)
+  );
+
+  REG  REG_inst (
+    .clk(clk_in),
+    .rst(rst_in),
+    .rdy(rdy_in),
+    .clear(clear),
+    .Insq_REG(Insq_REG),
+    .rs1_0(rs1_0),
+    .rs2_0(rs2_0),
+    .reg_busy_rs1(reg_busy_rs1),
+    .reg_busy_rs2(reg_busy_rs2),
+    .reg_rs1_reorder(reg_rs1_reorder),
+    .reg_rs2_reorder(reg_rs2_reorder),
+    .reg_order_rs1(reg_order_rs1),
+    .reg_order_rs2(reg_order_rs2),
+    .order_rd(order_rd),
+    .rd_reorder(rd_reorder),
+    .rd_busy(rd_busy),
+    .ROB_Reg(ROB_Reg),
+    .ROB_Reg2(ROB_Reg2),
+    .rd_commit(rd_commit),
+    .rd_busy_commit(rd_busy_commit),
+    .rd_reorder_commit(rd_reorder_commit),
+    .rd_data_commit(rd_data_commit),
+    .rd_busy_commit_(rd_busy_commit_)
+  );
+
+
+  ROB  ROB_inst (
+    .clk(clk_in),
+    .rst(rst_in),
+    .rdy(rdy_in),
+    .clear(clear),
+    .data3(data3),
+    .right(right),
+    .wrong(wrong),
+    .index_bht2(index_bht2),
+    .ROB_RS(ROB_RS),
+    .data3_RS(data3_RS),
+    .ROB_SLB(ROB_SLB),
+    .ROB_SLB2(ROB_SLB2),
+    .data3_SLB(data3_SLB),
+    .rd_commit(rd_commit),
+    .rd_busy_commit(rd_busy_commit),
+    .rd_reorder_commit(rd_reorder_commit),
+    .ROB_Reg(ROB_Reg),
+    .ROB_Reg2(ROB_Reg2),
+    .rd_data_commit(rd_data_commit),
+    .rd_busy_commit_(rd_busy_commit_),
+    .pc_(pc_),
+    .clear_o(clear),
+    .h1(h1),
+    .h2(h2),
+    .rob_size(rob_size),
+    .rob_r(rob_r),
+    .rob_h1_ready(rob_h1_ready),
+    .rob_h2_ready(rob_h2_ready),
+    .h1_value(h1_value),
+    .h2_value(h2_value),
+    .Insq_ROB(Insq_ROB),
+    .ROB_add(ROB_add),
+    .data1(data1),
+    .rob_r_(rob_r_),
+    .rob_pc_(rob_pc_),
+    .rob_inst_(rob_inst_),
+    .rob_order_(rob_order_),
+    .rob_dest_(rob_dest_),
+    .rob_topc_(rob_topc_),
+    .rob_ready_(rob_ready_),
+    .rob_jump_(rob_jump_),
+    .RS_ROB(RS_ROB),
+    .RS_ROB2(RS_ROB2),
+    .data2(data2),
+    .data2_value(data2_value),
+    .data2_ready(data2_ready),
+    .data2_topc(data2_topc),
+    .SLB_ROB(SLB_ROB),
+    .data4(data4),
+    .data4_value(data4_value),
+    .data4_ready(data4_ready)
+  );
+
+  RS  RS_inst (
+    .clk(clk_in),
+    .rst(rst_in),
+    .rdy(rdy_in),
+    .clear(clear),
+    .data2(data2),
+    .RS_ROB(RS_ROB),
+    .RS_ROB2(RS_ROB2),
+    .data2_value(data2_value),
+    .data2_topc(data2_topc),
+    .data2_ready(data2_ready),
+    .data3(data3),
+    .ROB_RS(ROB_RS),
+    .data3_RS(data3_RS),
+    .RS_SLB(RS_SLB),
+    .slb_value(slb_value),
+    .data4(data4),
+    .load_value(load_value),
+    .SLB_RS(SLB_RS),
+    .rs_unbusy(rs_unbusy),
+    .Insq_RS(Insq_RS),
+    .return2(return2),
+    .rs_vj(rs_vj),
+    .rs_vk(rs_vk),
+    .rs_qj(rs_qj),
+    .rs_qk(rs_qk),
+    .rs_inst(rs_inst),
+    .rs_order(rs_order),
+    .rs_pc(rs_pc),
+    .rs_topc(rs_topc),
+    .rs_A(rs_A),
+    .rs_reorder(rs_reorder),
+    .rs_busy(rs_busy)
+  );
+
+  SLB  SLB_inst (
+    .clk(clk_in),
+    .rst(rst_in),
+    .rdy(rdy_in),
+    .clear(clear),
+    .data4(data4),
+    .memctrl_data_ready(memctrl_data_ready),
+    .memctrl_data_ret(memctrl_data_ret),
+    .slb_load(slb_load),
+    .slb_store(slb_store),
+    .slb_mem_order(slb_mem_order),
+    .slb_mem_vj(slb_mem_vj),
+    .slb_mem_vk(slb_mem_vk),
+    .slb_mem_A(slb_mem_A),
+    .SLB_ROB(SLB_ROB),
+    .data4_value(data4_value),
+    .data4_ready(data4_ready),
+    .SLB_RS(SLB_RS),
+    .load_value(load_value),
+    .slb_size(slb_size),
+    .slb_r(slb_r),
+    .Insq_SLB(Insq_SLB),
+    .SLB_add(SLB_add),
+    .return1(return1),
+    .slb_r_(slb_r_),
+    .slb_vj(slb_vj),
+    .slb_vk(slb_vk),
+    .slb_A(slb_A),
+    .slb_reorder(slb_reorder),
+    .slb_qj(slb_qj),
+    .slb_qk(slb_qk),
+    .slb_pc(slb_pc),
+    .slb_inst(slb_inst),
+    .slb_order(slb_order),
+    .slb_ready(slb_ready),
+    .RS_SLB(RS_SLB),
+    .data2(data2),
+    .slb_value(slb_value),
+    .data3(data3),
+    .ROB_SLB(ROB_SLB),
+    .ROB_SLB2(ROB_SLB2),
+    .data3_SLB(data3_SLB)
+  );
+
+  BHT  BHT_inst (
+    .clk(clk_in),
+    .rst(rst_in),
+    .rdy(rdy_in),
+    .right(right),
+    .wrong(wrong),
+    .index_bht(index_bht),
+    .index_bht2(index_bht2),
+    .bht_re(bht_re)
+  );
 
 
 
-InstQueue u_InstQueue(
-    .clk                            ( clk_in                            ),
-    .rst                            ( rst_in                            ),
-    .rdy                            ( rdy_in                            ),
-    .Clear_flag                     ( Clear_flag                     ),
-    .memctrl_ins_ok                 ( memctrl_ins_ok                 ),
-    .memctrl_ins_ans                ( memctrl_ins_ans                ),
-    .insqueue_to_memctrl_needchange ( insqueue_to_memctrl_needchange ),
-    .memctrl_ins_addr_              ( memctrl_ins_addr_              ),
-    .memctrl_ins_remain_cycle_      ( memctrl_ins_remain_cycle_      ),
-    .addr1                          ( addr1                          ),
-    .hit_in                         ( hit                         ),
-    .returnInst                     ( returnInst                     ),
-    .insqueue_to_ICache_needchange  ( insqueue_to_ICache_needchange  ),
-    .addr2                          ( addr2                          ),
-    .storeInst                      ( storeInst                      ),
-    .bht_id1                        ( bht_id1                        ),
-    .bht_get                        ( bht_get                        ),
-    .h1                             ( h1                             ),
-    .h2                             ( h2                             ),
-    .ROB_size                       ( ROB_size                       ),
-    .ROB_R                          ( ROB_R                          ),
-    .ROB_s_ready_h1                 ( ROB_s_ready_h1                 ),
-    .ROB_s_value_h1                 ( ROB_s_value_h1                 ),
-    .ROB_s_ready_h2                 ( ROB_s_ready_h2                 ),
-    .ROB_s_value_h2                 ( ROB_s_value_h2                 ),
-    .insqueue_to_ROB_needchange     ( insqueue_to_ROB_needchange     ),
-    .insqueue_to_ROB_size_addflag   ( insqueue_to_ROB_size_addflag   ),
-    .b1                             ( b1                             ),
-    .ROB_R_                         ( ROB_R_                         ),
-    .ROB_s_pc_b1_                   ( ROB_s_pc_b1_                   ),
-    .ROB_s_inst_b1_                 ( ROB_s_inst_b1_                 ),
-    .ROB_s_ordertype_b1_            ( ROB_s_ordertype_b1_            ),
-    .ROB_s_dest_b1_                 ( ROB_s_dest_b1_                 ),
-    .ROB_s_jumppc_b1_               ( ROB_s_jumppc_b1_               ),
-    .ROB_s_isjump_b1_               ( ROB_s_isjump_b1_               ),
-    .ROB_s_ready_b1_                ( ROB_s_ready_b1_                ),
-    .RS_unbusy_pos                  ( RS_unbusy_pos                  ),
-    .insqueue_to_RS_needchange      ( insqueue_to_RS_needchange      ),
-    .r2                             ( r2                             ),
-    .RS_s_vj_r2_                    ( RS_s_vj_r2_                    ),
-    .RS_s_vk_r2_                    ( RS_s_vk_r2_                    ),
-    .RS_s_qj_r2_                    ( RS_s_qj_r2_                    ),
-    .RS_s_qk_r2_                    ( RS_s_qk_r2_                    ),
-    .RS_s_inst_r2_                  ( RS_s_inst_r2_                  ),
-    .RS_s_ordertype_r2_             ( RS_s_ordertype_r2_             ),
-    .RS_s_pc_r2_                    ( RS_s_pc_r2_                    ),
-    .RS_s_jumppc_r2_                ( RS_s_jumppc_r2_                ),
-    .RS_s_A_r2_                     ( RS_s_A_r2_                     ),
-    .RS_s_reorder_r2_               ( RS_s_reorder_r2_               ),
-    .RS_s_busy_r2_                  ( RS_s_busy_r2_                  ),
-    .SLB_size                       ( SLB_size                       ),
-    .SLB_R                          ( SLB_R                          ),
-    .insqueue_to_SLB_needchange     ( insqueue_to_SLB_needchange     ),
-    .insqueue_to_SLB_size_addflag   ( insqueue_to_SLB_size_addflag   ),
-    .r1                             ( r1                             ),
-    .SLB_R_                         ( SLB_R_                         ),
-    .SLB_s_vj_r1_                   ( SLB_s_vj_r1_                   ),
-    .SLB_s_vk_r1_                   ( SLB_s_vk_r1_                   ),
-    .SLB_s_qj_r1_                   ( SLB_s_qj_r1_                   ),
-    .SLB_s_qk_r1_                   ( SLB_s_qk_r1_                   ),
-    .SLB_s_inst_r1_                 ( SLB_s_inst_r1_                 ),
-    .SLB_s_ordertype_r1_            ( SLB_s_ordertype_r1_            ),
-    .SLB_s_pc_r1_                   ( SLB_s_pc_r1_                   ),
-    .SLB_s_A_r1_                    ( SLB_s_A_r1_                    ),
-    .SLB_s_reorder_r1_              ( SLB_s_reorder_r1_              ),
-    .SLB_s_ready_r1_                ( SLB_s_ready_r1_                ),
-    .order_rs1                      ( order_rs1                      ),
-    .order_rs2                      ( order_rs2                      ),
-    .reg_busy_order_rs1             ( reg_busy_order_rs1             ),
-    .reg_busy_order_rs2             ( reg_busy_order_rs2             ),
-    .reg_reorder_order_rs1          ( reg_reorder_order_rs1          ),
-    .reg_reorder_order_rs2          ( reg_reorder_order_rs2          ),
-    .reg_reg_order_rs1              ( reg_reg_order_rs1              ),
-    .reg_reg_order_rs2              ( reg_reg_order_rs2              ),
-    .insqueue_to_Reg_needchange     ( insqueue_to_Reg_needchange     ),
-    .order_rd                       ( order_rd                       ),
-    .reg_busy_order_rd_             ( reg_busy_order_rd_             ),
-    .reg_reorder_order_rd_          ( reg_reorder_order_rd_          ),
-    .pc_                            ( pc_                            )
-);
-
-ICache u_ICache(
-    .clk                            ( clk_in                                ),
-    .rst                            ( rst_in                                ),
-    .rdy                            ( rdy_in                                ),
-    .addr1                          ( addr1                             ),
-    .hit                            ( hit                               ),
-    .returnInst                     ( returnInst                        ),
-    .insqueue_to_ICache_needchange  ( insqueue_to_ICache_needchange     ),
-    .addr2                          ( addr2                             ),
-    .storeInst                      ( storeInst                         )
-);
-
-MemCtrl u_MemCtrl(
-    .clk                            ( clk_in                            ),
-    .rst                            ( rst_in                            ),
-    .rdy                            ( rdy_in                            ),
-    .io_buffer_full                 ( io_buffer_full                    ),
-    .r_or_w                         ( mem_wr                        ),
-    .a_in                           ( mem_a                           ),
-    .d_in                           ( mem_dout                           ),
-    .d_out                          ( mem_din                          ),
-    .Clear_flag                     ( Clear_flag                     ),
-    .memctrl_ins_ok__               ( memctrl_ins_ok               ),
-    .memctrl_ins_ans__              ( memctrl_ins_ans              ),
-    .insqueue_to_memctrl_needchange ( insqueue_to_memctrl_needchange ),
-    .memctrl_ins_addr_              ( memctrl_ins_addr_              ),
-    .memctrl_ins_remain_cycle_      ( memctrl_ins_remain_cycle_      ),
-    .memctrl_data_ok__              ( memctrl_data_ok              ),
-    .memctrl_data_ans__             ( memctrl_data_ans             ),
-    .SLB_to_memctrl_needchange      ( SLB_to_memctrl_needchange      ),
-    .SLB_to_memctrl_needchange2     ( SLB_to_memctrl_needchange2     ),
-    .SLB_to_memctrl_ordertype       ( SLB_to_memctrl_ordertype       ),
-    .SLB_to_memctrl_vj              ( SLB_to_memctrl_vj              ),
-    .SLB_to_memctrl_vk              ( SLB_to_memctrl_vk              ),
-    .SLB_to_memctrl_A               ( SLB_to_memctrl_A               )
-);
 
 
-Reg u_Reg(
-    .clk                        ( clk_in                        ),
-    .rst                        ( rst_in                        ),
-    .rdy                        ( rdy_in                        ),
-    .Clear_flag                 ( Clear_flag                 ),
-    .order_rs1                  ( order_rs1                  ),
-    .order_rs2                  ( order_rs2                  ),
-    .reg_busy_order_rs1         ( reg_busy_order_rs1         ),
-    .reg_busy_order_rs2         ( reg_busy_order_rs2         ),
-    .reg_reorder_order_rs1      ( reg_reorder_order_rs1      ),
-    .reg_reorder_order_rs2      ( reg_reorder_order_rs2      ),
-    .reg_reg_order_rs1          ( reg_reg_order_rs1          ),
-    .reg_reg_order_rs2          ( reg_reg_order_rs2          ),
-    .insqueue_to_Reg_needchange ( insqueue_to_Reg_needchange ),
-    .order_rd                   ( order_rd                   ),
-    .reg_busy_order_rd_         ( reg_busy_order_rd_         ),
-    .reg_reorder_order_rd_      ( reg_reorder_order_rd_      ),
-    .commit_rd                  ( commit_rd                  ),
-    .reg_busy_commit_rd         ( reg_busy_commit_rd         ),
-    .reg_reorder_commit_rd      ( reg_reorder_commit_rd      ),
-    .ROB_to_Reg_needchange      ( ROB_to_Reg_needchange      ),
-    .ROB_to_Reg_needchange2     ( ROB_to_Reg_needchange2     ),
-    .reg_reg_commit_rd_         ( reg_reg_commit_rd_         ),
-    .reg_busy_commit_rd_        ( reg_busy_commit_rd_        )
-);
-
-ROB u_ROB(
-    .clk                          ( clk_in                          ),
-    .rst                          ( rst_in                          ),
-    .rdy                          ( rdy_in                          ),
-    .Clear_flag                   ( Clear_flag                   ),
-    .b3                           ( b3                           ),
-    .ROB_to_BHT_needchange        ( ROB_to_BHT_needchange        ),
-    .ROB_to_BHT_needchange2       ( ROB_to_BHT_needchange2       ),
-    .bht_id2                      ( bht_id2                      ),
-    .ROB_to_RS_needchange         ( ROB_to_RS_needchange         ),
-    .ROB_to_RS_value_b3           ( ROB_to_RS_value_b3           ),
-    .ROB_to_SLB_needchange        ( ROB_to_SLB_needchange        ),
-    .ROB_to_SLB_needchange2       ( ROB_to_SLB_needchange2       ),
-    .ROB_to_SLB_value_b3          ( ROB_to_SLB_value_b3          ),
-    .commit_rd                    ( commit_rd                    ),
-    .reg_busy_commit_rd           ( reg_busy_commit_rd           ),
-    .reg_reorder_commit_rd        ( reg_reorder_commit_rd        ),
-    .ROB_to_Reg_needchange        ( ROB_to_Reg_needchange        ),
-    .ROB_to_Reg_needchange2       ( ROB_to_Reg_needchange2       ),
-    .reg_reg_commit_rd_           ( reg_reg_commit_rd_           ),
-    .reg_busy_commit_rd_          ( reg_busy_commit_rd_          ),
-    .pc_                          ( pc_                          ),
-    .Clear_flag_                  ( Clear_flag                  ),
-    .h1                           ( h1                           ),
-    .h2                           ( h2                           ),
-    .ROB_size__                   ( ROB_size                   ),
-    .ROB_R__                      ( ROB_R                      ),
-    .ROB_s_ready_h1               ( ROB_s_ready_h1               ),
-    .ROB_s_value_h1               ( ROB_s_value_h1               ),
-    .ROB_s_ready_h2               ( ROB_s_ready_h2               ),
-    .ROB_s_value_h2               ( ROB_s_value_h2               ),
-    .insqueue_to_ROB_needchange   ( insqueue_to_ROB_needchange   ),
-    .insqueue_to_ROB_size_addflag ( insqueue_to_ROB_size_addflag ),
-    .b1                           ( b1                           ),
-    .ROB_R_                       ( ROB_R_                       ),
-    .ROB_s_pc_b1_                 ( ROB_s_pc_b1_                 ),
-    .ROB_s_inst_b1_               ( ROB_s_inst_b1_               ),
-    .ROB_s_ordertype_b1_          ( ROB_s_ordertype_b1_          ),
-    .ROB_s_dest_b1_               ( ROB_s_dest_b1_               ),
-    .ROB_s_jumppc_b1_             ( ROB_s_jumppc_b1_             ),
-    .ROB_s_isjump_b1_             ( ROB_s_isjump_b1_             ),
-    .ROB_s_ready_b1_              ( ROB_s_ready_b1_              ),
-    .RS_to_ROB_needchange         ( RS_to_ROB_needchange         ),
-    .RS_to_ROB_needchange2        ( RS_to_ROB_needchange2        ),
-    .b2                           ( b2                           ),
-    .ROB_s_value_b2_              ( ROB_s_value_b2_              ),
-    .ROB_s_ready_b2_              ( ROB_s_ready_b2_              ),
-    .ROB_s_jumppc_b2_             ( ROB_s_jumppc_b2_             ),
-    .SLB_to_ROB_needchange        ( SLB_to_ROB_needchange        ),
-    .b4                           ( b4                           ),
-    .ROB_s_value_b4_              ( ROB_s_value_b4_              ),
-    .ROB_s_ready_b4_              ( ROB_s_ready_b4_              )
-);
-
-RS u_RS(
-    .clk                       ( clk_in                       ),
-    .rst                       ( rst_in                       ),
-    .rdy                       ( rdy_in                       ),
-    .Clear_flag                ( Clear_flag                ),
-    .b2                        ( b2                        ),
-    .RS_to_ROB_needchange      ( RS_to_ROB_needchange      ),
-    .RS_to_ROB_needchange2     ( RS_to_ROB_needchange2     ),
-    .ROB_s_value_b2_           ( ROB_s_value_b2_           ),
-    .ROB_s_ready_b2_           ( ROB_s_ready_b2_           ),
-    .ROB_s_jumppc_b2_          ( ROB_s_jumppc_b2_          ),
-    .RS_to_SLB_needchange      ( RS_to_SLB_needchange      ),
-    .RS_to_SLB_value           ( RS_to_SLB_value           ),
-    .RS_unbusy_pos             ( RS_unbusy_pos             ),
-    .insqueue_to_RS_needchange ( insqueue_to_RS_needchange ),
-    .r2                        ( r2                        ),
-    .RS_s_vj_r2_               ( RS_s_vj_r2_               ),
-    .RS_s_vk_r2_               ( RS_s_vk_r2_               ),
-    .RS_s_qj_r2_               ( RS_s_qj_r2_               ),
-    .RS_s_qk_r2_               ( RS_s_qk_r2_               ),
-    .RS_s_inst_r2_             ( RS_s_inst_r2_             ),
-    .RS_s_ordertype_r2_        ( RS_s_ordertype_r2_        ),
-    .RS_s_pc_r2_               ( RS_s_pc_r2_               ),
-    .RS_s_jumppc_r2_           ( RS_s_jumppc_r2_           ),
-    .RS_s_A_r2_                ( RS_s_A_r2_                ),
-    .RS_s_reorder_r2_          ( RS_s_reorder_r2_          ),
-    .RS_s_busy_r2_             ( RS_s_busy_r2_             ),
-    .b3                        ( b3                        ),
-    .ROB_to_RS_needchange      ( ROB_to_RS_needchange      ),
-    .ROB_to_RS_value_b3        ( ROB_to_RS_value_b3        ),
-    .SLB_to_RS_needchange      ( SLB_to_RS_needchange      ),
-    .SLB_to_RS_loadvalue       ( SLB_to_RS_loadvalue       ),
-    .b4                        ( b4                        )
-);
-
-SLB u_SLB(
-    .clk                          ( clk_in                          ),
-    .rst                          ( rst_in                          ),
-    .rdy                          ( rdy_in                          ),
-    .Clear_flag                   ( Clear_flag                   ),
-    .SLB_size__                   ( SLB_size                   ),
-    .SLB_R__                      ( SLB_R                      ),
-    .insqueue_to_SLB_needchange   ( insqueue_to_SLB_needchange   ),
-    .insqueue_to_SLB_size_addflag ( insqueue_to_SLB_size_addflag ),
-    .r1                           ( r1                           ),
-    .SLB_R_                       ( SLB_R_                       ),
-    .SLB_s_vj_r1_                 ( SLB_s_vj_r1_                 ),
-    .SLB_s_vk_r1_                 ( SLB_s_vk_r1_                 ),
-    .SLB_s_qj_r1_                 ( SLB_s_qj_r1_                 ),
-    .SLB_s_qk_r1_                 ( SLB_s_qk_r1_                 ),
-    .SLB_s_inst_r1_               ( SLB_s_inst_r1_               ),
-    .SLB_s_ordertype_r1_          ( SLB_s_ordertype_r1_          ),
-    .SLB_s_pc_r1_                 ( SLB_s_pc_r1_                 ),
-    .SLB_s_A_r1_                  ( SLB_s_A_r1_                  ),
-    .SLB_s_reorder_r1_            ( SLB_s_reorder_r1_            ),
-    .SLB_s_ready_r1_              ( SLB_s_ready_r1_              ),
-    .b4                           ( b4                           ),
-    .memctrl_data_ok              ( memctrl_data_ok              ),
-    .memctrl_data_ans             ( memctrl_data_ans             ),
-    .SLB_to_memctrl_needchange    ( SLB_to_memctrl_needchange    ),
-    .SLB_to_memctrl_needchange2   ( SLB_to_memctrl_needchange2   ),
-    .SLB_to_memctrl_ordertype     ( SLB_to_memctrl_ordertype     ),
-    .SLB_to_memctrl_vj            ( SLB_to_memctrl_vj            ),
-    .SLB_to_memctrl_vk            ( SLB_to_memctrl_vk            ),
-    .SLB_to_memctrl_A             ( SLB_to_memctrl_A             ),
-    .SLB_to_ROB_needchange        ( SLB_to_ROB_needchange        ),
-    .ROB_s_value_b4_              ( ROB_s_value_b4_              ),
-    .ROB_s_ready_b4_              ( ROB_s_ready_b4_              ),
-    .SLB_to_RS_needchange         ( SLB_to_RS_needchange         ),
-    .SLB_to_RS_loadvalue          ( SLB_to_RS_loadvalue          ),
-    .RS_to_SLB_needchange         ( RS_to_SLB_needchange         ),
-    .b2                           ( b2                           ),
-    .RS_to_SLB_value              ( RS_to_SLB_value              ),
-    .b3                           ( b3                           ),
-    .ROB_to_SLB_needchange        ( ROB_to_SLB_needchange        ),
-    .ROB_to_SLB_needchange2       ( ROB_to_SLB_needchange2       ),
-    .ROB_to_SLB_value_b3          ( ROB_to_SLB_value_b3          )
-);
-
-
-BHT u_BHT(
-    .clk                    ( clk_in                    ),
-    .rst                    ( rst_in                    ),
-    .rdy                    ( rdy_in                    ),
-    .bht_id1                ( bht_id1                ),
-    .bht_get                ( bht_get                ),
-    .ROB_to_BHT_needchange  ( ROB_to_BHT_needchange  ),
-    .ROB_to_BHT_needchange2 ( ROB_to_BHT_needchange2 ),
-    .bht_id2                ( bht_id2                )
-);
 
 
 

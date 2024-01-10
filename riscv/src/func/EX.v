@@ -1,74 +1,79 @@
 
-
-module EX (
-	input wire [`INST_TYPE_WIDTH] ordertype,
-	input wire [`DATA_WIDTH] vj,
-	input wire [`DATA_WIDTH] vk,
-	input wire [`DATA_WIDTH] A,
-	input wire [`DATA_WIDTH] pc,
-	output reg [`DATA_WIDTH] value,
-	output reg [`DATA_WIDTH] jumppc
+module EX(
+    input wire [5:0] order,
+    input wire [31:0] vj,
+    input wire [31:0] vk,
+    input wire [31:0] A,
+    input wire [31:0] pc,
+    output reg [31:0] value,
+    output reg [31:0] topc
 );
+
 always @(*) begin
-    
-    if(ordertype==`JALR)jumppc=(vj+A)&(~1);
-    else jumppc=0;//for_latch
-    
-	if(ordertype==`LUI)value=A;
-	else if(ordertype==`AUIPC)value=pc+A;
+    if(order==`LUI) value=A;
+    if(order==`AUIPC) value=A+pc;
+    if(order==`ADD) value=vj+vk;
+    if(order==`SUB) value=vj-vk;
+    if(order==`SLL) value=vj<<(vk&5'h1f);
+    if(order==`SLT) begin
+        if($signed(vj)<$signed(vk)) value=1;
+        else value=0;
+    end
+    if(order==`SLTU) begin
+        if(vj<vk) value=1;
+        else value=0;
+    end
+    if(order==`XOR) value=vj^vk;
 
-	else if(ordertype==`ADD)value=vj+vk;
-	else if(ordertype==`SUB)value=vj-vk;
-	else if(ordertype==`SLL)value=vj<<(vk&5'h1f);
-	else if(ordertype==`SLT)value=($signed(vj)<$signed(vk))?1:0;
-	else if(ordertype==`SLTU)value=(vj<vk)?1:0;
-	else if(ordertype==`XOR)value=vj^vk;
-	else if(ordertype==`SRL)value=vj>>(vk&5'h1f);
-	else if(ordertype==`SRA)value=$signed(vj)>>(vk&5'h1f);
-	else if(ordertype==`OR)value=vj|vk;
-	else if(ordertype==`AND)value=vj&vk;
+    if(order==`SRL)value=vj>>(vk&5'h1f);
+	if(order==`SRA)value=$signed(vj)>>(vk&5'h1f);
+	if(order==`OR)value=vj|vk;
+	if(order==`AND)value=vj&vk;
 
-	else if(ordertype==`JALR) begin
-//		jumppc=(vj+A)&(~1);
+    if(order==`JALR) begin
+		topc=(vj+A)&(~1);
 		value=pc+4;
 	end
-
-
-	else if(ordertype==`ADDI)value=vj+A;
-	else if(ordertype==`SLTI)value=($signed(vj)<$signed(A))?1:0;
-	else if(ordertype==`SLTIU)value=(vj<A)?1:0;
-	else if(ordertype==`XORI)value=vj^A;
-	else if(ordertype==`ORI)value=vj|A;
-	else if(ordertype==`ANDI)value=vj&A;
-	else if(ordertype==`SLLI)value=vj<<A;
-	else if(ordertype==`SRLI)value=vj>>A;
-	else if(ordertype==`SRAI)value=$signed(vj)>>A;
+    
+    if(order==`ADDI)value=vj+A;
+	if(order==`SLTI)value=($signed(vj)<$signed(A))?1:0;
+	if(order==`SLTIU)value=(vj<A)?1:0;
+	if(order==`XORI)value=vj^A;
+	if(order==`ORI)value=vj|A;
+	if(order==`ANDI)value=vj&A;
+	if(order==`SLLI)value=vj<<A;
+	if(order==`SRLI)value=vj>>A;
+	if(order==`SRAI)value=$signed(vj)>>A;
 	
 
-	else if(ordertype==`JAL) begin
+	if(order==`JAL) begin
 		value=pc+4;
 	end
 
 
-	else if(ordertype==`BEQ) begin
+	if(order==`BEQ) begin
 		value=(vj==vk?1:0);
 	end
-	else if(ordertype==`BNE) begin
+	if(order==`BNE) begin
 		value=(vj!=vk?1:0);
 	end
-	else if(ordertype==`BLT) begin
+	if(order==`BLT) begin
 		value=($signed(vj)<$signed(vk)?1:0);
 	end
-	else if(ordertype==`BGE) begin
+	if(order==`BGE) begin
 		value=($signed(vj)>=$signed(vk)?1:0);
 	end
-	else if(ordertype==`BLTU) begin
+	if(order==`BLTU) begin
 		value=(vj<vk?1:0);
 	end
-	else if(ordertype==`BGEU) begin
+	if(order==`BGEU) begin
 		value=(vj>=vk?1:0);
 	end
-	else value=0;//for_latch
+
 end
+
+
+
+
 
 endmodule
