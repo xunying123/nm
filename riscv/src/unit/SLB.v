@@ -1,7 +1,4 @@
-`include "/mnt/e/RISCV-CPU/CPU/src/info.v"
-// `include "/RISCV-CPU/CPU/src/info.v"
-// `include "/RISCV-CPU/CPU/src/func/Extend_LoadData.v"
-// `include "/RISCV-CPU/CPU/src/func/IsLoad.v"
+
 module SLB (
 	input wire clk,
 	input wire rst,

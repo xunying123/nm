@@ -1,5 +1,4 @@
-`include "/mnt/e/RISCV-CPU/CPU/src/info.v"
-// `include "/RISCV-CPU/CPU/src/info.v"
+
 
 module Extend_LoadData (
 	input wire [`INST_TYPE_WIDTH] tmp_ordertype,

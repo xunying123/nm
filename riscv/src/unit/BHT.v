@@ -1,5 +1,4 @@
-`include "/mnt/e/RISCV-CPU/CPU/src/info.v"
-// `include "/RISCV-CPU/CPU/src/info.v"
+
 module BHT (
 	input wire clk,
 	input wire rst,

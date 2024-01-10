@@ -1,6 +1,4 @@
-`include "/mnt/e/RISCV-CPU/CPU/src/info.v"
-// `include "/RISCV-CPU/CPU/src/info.v"
-// `include "/RISCV-CPU/CPU/src/func/EX.v"
+
 module RS (
 	input wire clk,
 	input wire rst,

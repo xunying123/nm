@@ -1,7 +1,4 @@
-`include "/mnt/e/RISCV-CPU/CPU/src/info.v"
-// `include "/RISCV-CPU/CPU/src/info.v"
-// `include "/RISCV-CPU/CPU/src/func/IsBranch.v"
-// `include "/RISCV-CPU/CPU/src/func/IsStore.v"
+
 module ROB (
 	input wire clk,
 	input wire rst,

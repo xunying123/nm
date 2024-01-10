@@ -1,9 +1,4 @@
-`include "/mnt/e/RISCV-CPU/CPU/src/info.v"
-// `include "/RISCV-CPU/CPU/src/info.v"
-// `include "/RISCV-CPU/CPU/src/func/Decode.v"
-// `include "/RISCV-CPU/CPU/src/func/IsBranch.v"
-// `include "/RISCV-CPU/CPU/src/func/IsLoad.v"
-// `include "/RISCV-CPU/CPU/src/func/IsStore.v"
+
 module InstQueue (
 	input wire clk,
 	input wire rst,
