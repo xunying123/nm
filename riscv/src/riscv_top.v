@@ -4,22 +4,6 @@
 // `include "/RISCV-CPU/CPU/src/xxx" windows下
 // `include "/mnt/e/RISCV-CPU/CPU/src/xxx" wsl下
 
-`include "/mnt/e/RISCV-CPU/CPU/src/common/block_ram/block_ram.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/common/fifo/fifo.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/common/uart/uart.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/common/uart/uart_tx.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/common/uart/uart_rx.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/common/uart/uart_baud_clk.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/interface/hci.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/interface/ram.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/func/Decode.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/func/EX.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/func/Extend_LoadData.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/func/IsBranch.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/func/IsLoad.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/func/IsStore.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/info.v"
-`include "/mnt/e/RISCV-CPU/CPU/src/cpu.v"
 
 // `include "/RISCV-CPU/CPU/src/common/block_ram/block_ram.v"
 // `include "/RISCV-CPU/CPU/src/common/fifo/fifo.v"
